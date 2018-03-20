@@ -17,5 +17,5 @@ run:
   path: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.sh
 
 params:
-  ENV_NAME: default
-  WINDOWS_OS_VERSION: windows2012R2
+  BBL_STATE_SUBDIRECTORY: ""
+  WINDOWS_OS_VERSION: ""

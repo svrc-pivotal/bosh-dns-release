@@ -37,15 +37,25 @@ jobs:
         params:
           WINDOWS_OS_VERSION: windows2012R2
           BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
+        timeout: 1h
         input_mapping:
           bbl-state: updated-bbl-state
+      - task: windows-nameserver-disabled
+        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
+        params:
+          WINDOWS_OS_VERSION: windows2012R2
+          BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
         timeout: 1h
-      # - task: windows-nameserver-disabled
-      #   file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
-      #   timeout: 1h
-      # - task: windows-shared
-      #   file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
-      #   timeout: 1h
+        input_mapping:
+          bbl-state: updated-bbl-state
+      - task: windows-shared
+        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
+        params:
+          WINDOWS_OS_VERSION: windows2012R2
+          BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
+        timeout: 1h
+        input_mapping:
+          bbl-state: updated-bbl-state
       ensure:
         task: destroy-env
         file: bosh-dns-release/ci/tasks/windows/destroy-env.yml
@@ -95,20 +105,24 @@ jobs:
           bosh-candidate-stemcell-windows: bosh-candidate-stemcell-windows2016
           bbl-state: updated-bbl-state
         timeout: 1h
-      # - task: windows-nameserver-disabled
-      #   file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
-      #   params:
-      #     WINDOWS_OS_VERSION: windows2016
-      #   input_mapping:
-      #     bosh-candidate-stemcell-windows: bosh-candidate-stemcell-windows2016
-      #   timeout: 1h
-      # - task: windows-shared
-      #   file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
-      #   params:
-      #     WINDOWS_OS_VERSION: windows2016
-      #   input_mapping:
-      #     bosh-candidate-stemcell-windows: bosh-candidate-stemcell-windows2016
-      #   timeout: 1h
+      - task: windows-nameserver-disabled
+        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
+        params:
+          WINDOWS_OS_VERSION: windows2016
+          BBL_STATE_SUBDIRECTORY: windows2016/bbl-state
+        input_mapping:
+          bosh-candidate-stemcell-windows: bosh-candidate-stemcell-windows2016
+          bbl-state: updated-bbl-state
+        timeout: 1h
+      - task: windows-shared
+        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
+        params:
+          WINDOWS_OS_VERSION: windows2016
+          BBL_STATE_SUBDIRECTORY: windows2016/bbl-state
+        input_mapping:
+          bosh-candidate-stemcell-windows: bosh-candidate-stemcell-windows2016
+          bbl-state: updated-bbl-state
+        timeout: 1h
       ensure:
         task: destroy-env
         file: bosh-dns-release/ci/tasks/windows/destroy-env.yml
