@@ -1,0 +1,22 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: relintdockerhubpushbot/cf-deployment-concourse-tasks
+    tag: v4
+
+inputs:
+  - name: bbl-state
+  - name: bosh-dns-release
+
+outputs:
+  - name: cleanup-bbl-state
+
+params:
+  BBL_GCP_SERVICE_ACCOUNT_KEY: ""
+  BBL_STATE_DIR: ""
+
+run:
+  path: bosh-dns-release/ci/tasks/windows/destroy-env.sh
