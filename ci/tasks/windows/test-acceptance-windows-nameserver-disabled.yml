@@ -9,7 +9,7 @@ image_resource:
 
 inputs:
   - name: bosh-dns-release
-  - name: envs
+  - name: bbl-state
   - name: bosh-candidate-stemcell-windows
 
 run:
