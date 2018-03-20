@@ -9,13 +9,12 @@ jobs:
 - name: test-acceptance-windows2012
   public: false
   serial: true
-  serial_groups:
-  - windows-acceptance-env
   plan:
     - aggregate:
       - get: bosh-dns-release
         trigger: true
-      - get: envs
+      - get: bbl-state
+        resource: envs
       - get: bosh-deployment
       - get: gcp-linux-stemcell
       - get: bosh-candidate-stemcell-windows
@@ -62,15 +61,14 @@ jobs:
             rebase: true
 
 - name: test-acceptance-windows2016
-  public: true
+  public: false
   serial: true
-  serial_groups:
-  - windows-acceptance-env
   plan:
     - aggregate:
       - get: bosh-dns-release
         trigger: true
-      - get: envs
+      - get: bbl-state
+        resource: envs
       - get: bosh-deployment
       - get: gcp-linux-stemcell
       - get: bosh-candidate-stemcell-windows2016
