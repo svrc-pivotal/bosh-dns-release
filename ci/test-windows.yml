@@ -32,6 +32,7 @@ jobs:
           put: envs
           params:
             repository: updated-bbl-state
+            rebase: true
       - task: windows
         file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
         params:
@@ -96,6 +97,7 @@ jobs:
           put: envs
           params:
             repository: updated-bbl-state
+            rebase: true
       - task: windows
         file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
         params:

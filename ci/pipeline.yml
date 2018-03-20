@@ -231,6 +231,7 @@ jobs:
           put: envs
           params:
             repository: updated-bbl-state
+            rebase: true
       - task: deploy-docker-vms
         file: bosh-dns-release/ci/tasks/test-stress/deploy-docker.yml
         input_mapping:
