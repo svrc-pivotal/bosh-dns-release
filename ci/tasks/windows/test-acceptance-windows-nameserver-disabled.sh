@@ -6,6 +6,7 @@ main() {
   source_bbl_env $BBL_STATE_DIR
 
   bosh -n upload-stemcell bosh-candidate-stemcell-windows/*.tgz
+  bosh upload-release candidate-release/*.tgz
 
   export BOSH_DEPLOYMENT=bosh-dns-windows-acceptance
 
