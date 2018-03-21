@@ -11,6 +11,7 @@ main() {
   bosh -n upload-release candidate-release/*.tgz
 
   bosh -n deploy bosh-dns-release/src/bosh-dns/test_yml_assets/manifests/windows-acceptance-manifest.yml \
+    -v deployment_name=bosh-dns-windows-acceptance \
     -v health_server_port=2345 \
     -v windows_stemcell=$WINDOWS_OS_VERSION \
     -o bosh-dns-release/src/bosh-dns/test_yml_assets/ops/enable-health-manifest-ops.yml \
