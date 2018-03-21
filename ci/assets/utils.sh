@@ -37,7 +37,7 @@ commit_bbl_state_dir() {
 }
 
 clean_up_director() {
-  local deployment_name=${1}
+  local deployment_name=${1:-""}
 
   # Ensure the environment is clean
   if [[ -z "$deployment_name" ]]; then
