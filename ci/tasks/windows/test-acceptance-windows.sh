@@ -5,11 +5,10 @@ main() {
   export BBL_STATE_DIR=$PWD/bbl-state/${BBL_STATE_SUBDIRECTORY}
   source_bbl_env $BBL_STATE_DIR
 
-  bosh -n upload-stemcell bosh-candidate-stemcell-windows/*.tgz
-
   export BOSH_DEPLOYMENT=bosh-dns-windows-acceptance
 
-  bosh upload-release candidate-release/*.tgz
+  bosh -n upload-stemcell bosh-candidate-stemcell-windows/*.tgz
+  bosh -n upload-release candidate-release/*.tgz
 
   bosh -n deploy bosh-dns-release/src/bosh-dns/test_yml_assets/manifests/windows-acceptance-manifest.yml \
     -v health_server_port=2345 \

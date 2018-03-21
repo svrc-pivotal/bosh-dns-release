@@ -33,30 +33,31 @@ jobs:
           params:
             repository: updated-bbl-state
             rebase: true
-      - task: windows
-        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
-        params:
-          WINDOWS_OS_VERSION: windows2012R2
-          BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
-        timeout: 1h
-        input_mapping:
-          bbl-state: updated-bbl-state
-      - task: windows-nameserver-disabled
-        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
-        params:
-          WINDOWS_OS_VERSION: windows2012R2
-          BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
-        timeout: 1h
-        input_mapping:
-          bbl-state: updated-bbl-state
-      - task: windows-shared
-        file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
-        params:
-          WINDOWS_OS_VERSION: windows2012R2
-          BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
-        timeout: 1h
-        input_mapping:
-          bbl-state: updated-bbl-state
+      - aggregate:
+        - task: windows
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
+          params:
+            WINDOWS_OS_VERSION: windows2012R2
+            BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
+          timeout: 1h
+          input_mapping:
+            bbl-state: updated-bbl-state
+        - task: windows-nameserver-disabled
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
+          params:
+            WINDOWS_OS_VERSION: windows2012R2
+            BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
+          timeout: 1h
+          input_mapping:
+            bbl-state: updated-bbl-state
+        - task: windows-shared
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
+          params:
+            WINDOWS_OS_VERSION: windows2012R2
+            BBL_STATE_SUBDIRECTORY: windows2012/bbl-state
+          timeout: 1h
+          input_mapping:
+            bbl-state: updated-bbl-state
       ensure:
         task: destroy-env
         file: bosh-dns-release/ci/tasks/windows/destroy-env.yml
