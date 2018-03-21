@@ -18,3 +18,5 @@ main() {
 
   bosh run-errand acceptance-tests-windows
 }
+
+main
