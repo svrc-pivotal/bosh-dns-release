@@ -16,6 +16,8 @@ main() {
       -v bosh_client_secret="$BOSH_CLIENT_SECRET" \
       -v bosh_client="$BOSH_CLIENT" \
       -v bosh_environment="$BOSH_ENVIRONMENT" \
+      -l $BBL_STATE_DIR/vars/director-vars-store.yml \
+      -l $BBL_STATE_DIR/vars/director-vars-file.yml \
       -v base_stemcell=$WINDOWS_OS_VERSION \
       -v bosh_deployment=bosh-dns \
       --vars-store dns-creds.yml

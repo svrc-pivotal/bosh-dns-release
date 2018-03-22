@@ -28,6 +28,8 @@ instance_groups:
       bosh_environment: ((bosh_environment))
       bosh_deployment: ((bosh_deployment))
       base_stemcell: ((base_stemcell))
+      jumpbox_private_key: ((jumpbox_ssh.private_key))
+      jumpbox_host: ((jumpbox_url))
 
 releases:
 - name: bosh-dns

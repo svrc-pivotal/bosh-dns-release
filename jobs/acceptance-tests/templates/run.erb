@@ -1,31 +1,49 @@
 #!/bin/bash -exu
 
-# this export is required by the bosh cli; if HOME is unset then "~" will expand to the literal "~"
-export HOME=~
+setup_ssh_tunnel() {
+  local jumpbox_host=${1:-""}
+  local jumpbox_private_key=${2:-""}
 
-export BOSH_BINARY_PATH=/var/vcap/packages/acceptance-tests/bin/bosh
-export BOSH_CLIENT=<%= p('bosh_client') %>
-export BOSH_CLIENT_SECRET=<%= p('bosh_client_secret') %>
-export BOSH_CA_CERT=$(readlink -m /var/vcap/jobs/acceptance-tests/ca.crt)
-export BOSH_ENVIRONMENT=<%= p('bosh_environment') %>
-export BOSH_DEPLOYMENT=<%= p('bosh_deployment') %>
-export BASE_STEMCELL=<%= p('base_stemcell') %>
+  if [[ ! -z "$jumpbox_host" ]]; then
+    chmod 0600 $jumpbox_private_key
 
-export TEST_MANIFEST_NAME="dns-windows"
-export NO_RECURSORS_OPS_FILE="no-recursors-configured-windows"
-export LOCAL_RECURSOR_OPS_FILE="add-test-dns-nameservers-windows"
-export TEST_TARGET_OS="windows"
+    export BOSH_ALL_PROXY=socks5://localhost:55403
+    ssh -f -N -o StrictHostKeyChecking=no -o ServerAliveInterval=300 -D 55403 jumpbox@$jumpbox_host -i $jumpbox_private_key
+  fi
+}
 
-export TEST_CLOUD_CONFIG_PATH="/tmp/cloud-config.yml"
-${BOSH_BINARY_PATH} cloud-config > ${TEST_CLOUD_CONFIG_PATH}
+main() {
+  # this export is required by the bosh cli; if HOME is unset then "~" will expand to the literal "~"
+  export HOME=~
 
-source /var/vcap/packages/golang-1.9-linux/bosh/runtime.env
+  export BOSH_BINARY_PATH=/var/vcap/packages/acceptance-tests/bin/bosh
+  export BOSH_CLIENT=<%= p('bosh_client') %>
+  export BOSH_CLIENT_SECRET=<%= p('bosh_client_secret') %>
+  export BOSH_CA_CERT=/var/vcap/jobs/acceptance-tests/ca.crt
+  export BOSH_ENVIRONMENT=<%= p('bosh_environment') %>
+  export BOSH_DEPLOYMENT=<%= p('bosh_deployment') %>
+  export BASE_STEMCELL=<%= p('base_stemcell') %>
 
-mkdir -p $GOPATH/src
-cp -R /var/vcap/packages/acceptance-tests/src/bosh-dns $GOPATH/src/bosh-dns
+  export TEST_MANIFEST_NAME="dns-windows"
+  export NO_RECURSORS_OPS_FILE="no-recursors-configured-windows"
+  export LOCAL_RECURSOR_OPS_FILE="add-test-dns-nameservers-windows"
+  export TEST_TARGET_OS="windows"
 
-go install bosh-dns/vendor/github.com/onsi/ginkgo/ginkgo
+  setup_ssh_tunnel <%= p('jumpbox_host') %> /var/vcap/jobs/acceptance-tests/jumpbox_private_key
 
-pushd $GOPATH/src/bosh-dns/acceptance_tests
-   ginkgo -keepGoing -randomizeAllSpecs -randomizeSuites -race .
-popd
+  export TEST_CLOUD_CONFIG_PATH="/tmp/cloud-config.yml"
+  ${BOSH_BINARY_PATH} cloud-config > ${TEST_CLOUD_CONFIG_PATH}
+
+  source /var/vcap/packages/golang-1.9-linux/bosh/runtime.env
+
+  mkdir -p $GOPATH/src
+  cp -R /var/vcap/packages/acceptance-tests/src/bosh-dns $GOPATH/src/bosh-dns
+
+  go install bosh-dns/vendor/github.com/onsi/ginkgo/ginkgo
+
+  pushd $GOPATH/src/bosh-dns/acceptance_tests
+     ginkgo -keepGoing -randomizeAllSpecs -randomizeSuites -race .
+  popd
+}
+
+main

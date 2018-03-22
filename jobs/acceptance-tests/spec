@@ -6,6 +6,7 @@ description: "errand to run the shared acceptance tests"
 templates:
   run.erb: bin/run
   ca.crt.erb: ca.crt
+  jumpbox_private_key.erb: jumpbox_private_key
 
 packages:
   - golang-1.9-linux
@@ -25,6 +26,12 @@ properties:
         description: ""
         default:
     bosh_deployment:
+        description: ""
+        default:
+    jumpbox_host:
+        description: ""
+        default:
+    jumpbox_private_key:
         description: ""
         default:
     base_stemcell:
