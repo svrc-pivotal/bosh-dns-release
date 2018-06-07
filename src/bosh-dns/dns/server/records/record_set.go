@@ -42,8 +42,9 @@ type RecordSet struct {
 	filtererFactory     FiltererFactory
 	aliasQueryEncoder   AliasQueryEncoder
 
-	domains []string
-	Records []record.Record
+	domains           []string
+	Records           []record.Record
+	AgentAliasEnabled bool
 }
 
 func NewRecordSet(
@@ -55,6 +56,7 @@ func NewRecordSet(
 	logger boshlog.Logger,
 	filtererFactory FiltererFactory,
 	AliasQueryEncoder AliasQueryEncoder,
+	AgentAliasEnabled bool,
 ) (*RecordSet, error) {
 	r := &RecordSet{
 		recordFileReader:    recordFileReader,
@@ -66,6 +68,7 @@ func NewRecordSet(
 		healthChan:          make(chan record.Host, 2),
 		trackerSubscription: make(chan []record.Record),
 		filtererFactory:     filtererFactory,
+		AgentAliasEnabled:   AgentAliasEnabled,
 	}
 
 	trackedDomains := tracker.NewPriorityLimitedTranscript(maximumTrackedDomains)
@@ -132,7 +135,6 @@ func (r *RecordSet) Resolve(fqdn string) ([]string, error) {
 			finalIPs = append(finalIPs, expansion)
 		}
 	}
-
 	return finalIPs, nil
 }
 
@@ -212,6 +214,13 @@ func (r *RecordSet) update() {
 
 	r.Records = records
 
+	if r.AgentAliasEnabled {
+		for _, re := range r.Records {
+			r.aliasList.SetAlias(fmt.Sprintf("%s.", re.AgentID), []string{
+				fmt.Sprintf("%s.%s.%s.%s.%s", re.ID, re.Group, re.Network, re.Deployment, re.Domain),
+			})
+		}
+	}
 	r.mergedAliasList = aliases.NewConfig().Merge(r.aliasList).Merge(updatedAliases)
 
 	r.trackerSubscription <- records
@@ -257,6 +266,7 @@ func createFromJSON(j []byte, logger boshlog.Logger, aliasEncoder AliasQueryEnco
 	azIDIndex := -1
 	instanceIndexIndex := -1
 	groupIdsIndex := -1
+	agentIdIndex := -1
 
 	for i, k := range swap.Keys {
 		switch k {
@@ -284,6 +294,8 @@ func createFromJSON(j []byte, logger boshlog.Logger, aliasEncoder AliasQueryEnco
 			azIDIndex = i
 		case "instance_index":
 			instanceIndexIndex = i
+		case "agent_id":
+			agentIdIndex = i
 		default:
 			continue
 		}
@@ -324,6 +336,8 @@ func createFromJSON(j []byte, logger boshlog.Logger, aliasEncoder AliasQueryEnco
 		} else if !optionalStringValue(&record.NetworkID, info, networkIDIndex, "network_id", index, logger) {
 			continue
 		} else if !optionalStringValue(&record.NumID, info, numIDIndex, "num_id", index, logger) {
+			continue
+		} else if !optionalStringValue(&record.AgentID, info, agentIdIndex, "agent_id", index, logger) {
 			continue
 		} else if groupIdsIndex >= 0 && !assertStringArrayOfStringValue(&record.GroupIDs, info, groupIdsIndex, "group_ids", index, logger) {
 			continue
