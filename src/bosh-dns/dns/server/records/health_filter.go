@@ -1,6 +1,7 @@
 package records
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type healthWatcher interface {
 	HealthState(ip string) healthiness.HealthState
 	Track(ip string)
 	RunCheck(ip string)
+	RunCheck2(ip string) map[string]string
 }
 
 func NewHealthFilter(nextFilter reducer, health chan<- record.Host, w healthWatcher, shouldTrack bool) healthFilter {
@@ -52,7 +54,13 @@ func (q *healthFilter) Filter(crit criteria.Criteria, recs []record.Record) []re
 		q.processRecords(crit, records)
 	}
 
-	healthyRecords, unhealthyRecords, maybeHealthyRecords := q.sortRecords(records)
+	var healthyRecords, unhealthyRecords, maybeHealthyRecords []record.Record
+
+	if len(crit["g"]) > 0 {
+		healthyRecords, unhealthyRecords, maybeHealthyRecords = q.sortRecordsByGroup(records, crit["g"][0])
+	} else {
+		healthyRecords, unhealthyRecords, maybeHealthyRecords = q.sortRecords(records)
+	}
 
 	healthStrategy := "0"
 	if len(crit["s"]) > 0 {
@@ -113,6 +121,31 @@ func (q *healthFilter) waitForWaitGroupOrTimeout(wg *sync.WaitGroup) {
 			return
 		}
 	}
+}
+
+func (q *healthFilter) sortRecordsByGroup(records []record.Record, criteria string) (healthyRecords, unhealthyRecords, maybeHealthyRecords []record.Record) {
+	for _, r := range records {
+		groupState := q.w.RunCheck2(r.IP)
+
+		var healthy bool
+
+		for baseAddress, state := range groupState {
+			// TODO(db,mx) better way to communicate groups between client/server than domain names?
+			if strings.HasPrefix(baseAddress, "q-g"+criteria+".") && state == "running" {
+				healthy = true
+
+				break
+			}
+		}
+
+		if healthy {
+			healthyRecords = append(healthyRecords, r)
+		} else {
+			unhealthyRecords = append(unhealthyRecords, r)
+		}
+	}
+
+	return
 }
 
 func (q *healthFilter) sortRecords(records []record.Record) (healthyRecords, unhealthyRecords, maybeHealthyRecords []record.Record) {

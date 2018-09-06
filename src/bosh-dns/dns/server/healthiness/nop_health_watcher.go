@@ -23,4 +23,5 @@ func (hw *nopHealthWatcher) Run(signal <-chan struct{}) {
 	<-signal
 }
 
-func (hw *nopHealthWatcher) RunCheck(ip string) {}
+func (hw *nopHealthWatcher) RunCheck(ip string)                    {}
+func (hw *nopHealthWatcher) RunCheck2(ip string) map[string]string { return nil }

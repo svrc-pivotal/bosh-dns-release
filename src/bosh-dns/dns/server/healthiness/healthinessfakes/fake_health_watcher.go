@@ -49,6 +49,17 @@ type FakeHealthWatcher struct {
 	runCheckArgsForCall []struct {
 		ip string
 	}
+	RunCheck2Stub        func(ip string) string
+	runCheck2Mutex       sync.RWMutex
+	runCheck2ArgsForCall []struct {
+		ip string
+	}
+	runCheck2Returns struct {
+		result1 string
+	}
+	runCheck2ReturnsOnCall map[int]struct {
+		result1 string
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -245,6 +256,54 @@ func (fake *FakeHealthWatcher) RunCheckArgsForCall(i int) string {
 	return fake.runCheckArgsForCall[i].ip
 }
 
+func (fake *FakeHealthWatcher) RunCheck2(ip string) string {
+	fake.runCheck2Mutex.Lock()
+	ret, specificReturn := fake.runCheck2ReturnsOnCall[len(fake.runCheck2ArgsForCall)]
+	fake.runCheck2ArgsForCall = append(fake.runCheck2ArgsForCall, struct {
+		ip string
+	}{ip})
+	fake.recordInvocation("RunCheck2", []interface{}{ip})
+	fake.runCheck2Mutex.Unlock()
+	if fake.RunCheck2Stub != nil {
+		return fake.RunCheck2Stub(ip)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.runCheck2Returns.result1
+}
+
+func (fake *FakeHealthWatcher) RunCheck2CallCount() int {
+	fake.runCheck2Mutex.RLock()
+	defer fake.runCheck2Mutex.RUnlock()
+	return len(fake.runCheck2ArgsForCall)
+}
+
+func (fake *FakeHealthWatcher) RunCheck2ArgsForCall(i int) string {
+	fake.runCheck2Mutex.RLock()
+	defer fake.runCheck2Mutex.RUnlock()
+	return fake.runCheck2ArgsForCall[i].ip
+}
+
+func (fake *FakeHealthWatcher) RunCheck2Returns(result1 string) {
+	fake.RunCheck2Stub = nil
+	fake.runCheck2Returns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeHealthWatcher) RunCheck2ReturnsOnCall(i int, result1 string) {
+	fake.RunCheck2Stub = nil
+	if fake.runCheck2ReturnsOnCall == nil {
+		fake.runCheck2ReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.runCheck2ReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeHealthWatcher) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -260,6 +319,8 @@ func (fake *FakeHealthWatcher) Invocations() map[string][][]interface{} {
 	defer fake.runMutex.RUnlock()
 	fake.runCheckMutex.RLock()
 	defer fake.runCheckMutex.RUnlock()
+	fake.runCheck2Mutex.RLock()
+	defer fake.runCheck2Mutex.RUnlock()
 	return fake.invocations
 }
 

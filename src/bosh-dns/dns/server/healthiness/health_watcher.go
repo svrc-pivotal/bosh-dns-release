@@ -14,6 +14,7 @@ import (
 
 type HealthChecker interface {
 	GetStatus(ip string) HealthState
+	GetStatus2(ip string) map[string]string
 }
 
 //go:generate counterfeiter . HealthWatcher
@@ -25,6 +26,7 @@ type HealthWatcher interface {
 	Untrack(ip string)
 	Run(signal <-chan struct{})
 	RunCheck(ip string)
+	RunCheck2(ip string) map[string]string
 }
 
 type healthWatcher struct {
@@ -130,4 +132,11 @@ func (hw *healthWatcher) RunCheck(ip string) {
 	} else if oldState != newState {
 		hw.logger.Debug("healthWatcher", "State for IP <%s> changed from %s to %s", ip, oldState, newState)
 	}
+}
+
+func (hw *healthWatcher) RunCheck2(ip string) map[string]string {
+	hw.logger.Debug("healthWatcher", "MX starting runcheck 2")
+	resp := hw.checker.GetStatus2(ip)
+	hw.logger.Debug("healthWatcher", "MX Running check 2 : %s", resp)
+	return resp
 }

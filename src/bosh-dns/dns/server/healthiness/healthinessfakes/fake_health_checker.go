@@ -18,6 +18,17 @@ type FakeHealthChecker struct {
 	getStatusReturnsOnCall map[int]struct {
 		result1 healthiness.HealthState
 	}
+	GetStatus2Stub        func(ip string) string
+	getStatus2Mutex       sync.RWMutex
+	getStatus2ArgsForCall []struct {
+		ip string
+	}
+	getStatus2Returns struct {
+		result1 string
+	}
+	getStatus2ReturnsOnCall map[int]struct {
+		result1 string
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -70,11 +81,61 @@ func (fake *FakeHealthChecker) GetStatusReturnsOnCall(i int, result1 healthiness
 	}{result1}
 }
 
+func (fake *FakeHealthChecker) GetStatus2(ip string) string {
+	fake.getStatus2Mutex.Lock()
+	ret, specificReturn := fake.getStatus2ReturnsOnCall[len(fake.getStatus2ArgsForCall)]
+	fake.getStatus2ArgsForCall = append(fake.getStatus2ArgsForCall, struct {
+		ip string
+	}{ip})
+	fake.recordInvocation("GetStatus2", []interface{}{ip})
+	fake.getStatus2Mutex.Unlock()
+	if fake.GetStatus2Stub != nil {
+		return fake.GetStatus2Stub(ip)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.getStatus2Returns.result1
+}
+
+func (fake *FakeHealthChecker) GetStatus2CallCount() int {
+	fake.getStatus2Mutex.RLock()
+	defer fake.getStatus2Mutex.RUnlock()
+	return len(fake.getStatus2ArgsForCall)
+}
+
+func (fake *FakeHealthChecker) GetStatus2ArgsForCall(i int) string {
+	fake.getStatus2Mutex.RLock()
+	defer fake.getStatus2Mutex.RUnlock()
+	return fake.getStatus2ArgsForCall[i].ip
+}
+
+func (fake *FakeHealthChecker) GetStatus2Returns(result1 string) {
+	fake.GetStatus2Stub = nil
+	fake.getStatus2Returns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeHealthChecker) GetStatus2ReturnsOnCall(i int, result1 string) {
+	fake.GetStatus2Stub = nil
+	if fake.getStatus2ReturnsOnCall == nil {
+		fake.getStatus2ReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getStatus2ReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeHealthChecker) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.getStatusMutex.RLock()
 	defer fake.getStatusMutex.RUnlock()
+	fake.getStatus2Mutex.RLock()
+	defer fake.getStatus2Mutex.RUnlock()
 	return fake.invocations
 }
 

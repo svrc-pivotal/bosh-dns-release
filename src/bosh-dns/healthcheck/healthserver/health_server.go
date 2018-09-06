@@ -1,6 +1,7 @@
 package healthserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,7 +20,7 @@ type HealthServer interface {
 }
 
 type HealthExecutable interface {
-	Status() bool
+	Status() (bool, map[string]bool)
 }
 
 type concreteHealthServer struct {
@@ -88,16 +89,49 @@ func (c *concreteHealthServer) healthEntryPoint(w http.ResponseWriter, r *http.R
 	healthRaw, err := ioutil.ReadFile(c.healthJsonFileName)
 
 	if err != nil {
-		c.logger.Error(logTag, "Failed to read healthcheck data %s. error: %s", string(healthRaw), err)
+		c.logger.Error(logTag, "Failed to read healthcheck data %s. error: %s", healthRaw, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	var health struct {
+		State string `json:"state"`
+	}
+
+	err = json.Unmarshal(healthRaw, &health)
+	if err != nil {
+		c.logger.Error(logTag, "Failed to unmarshal healthcheck data %s. error: %s", healthRaw, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Add("Content-Type", "application/json")
 
-	if c.healthExecutable.Status() {
-		w.Write(healthRaw)
-	} else {
-		w.Write([]byte(`{"state":"job-health-executable-fail"}`))
+	status, groupStatus := c.healthExecutable.Status()
+	stateString := health.State
+
+	if !status {
+		stateString = "job-health-executable-fail"
 	}
+
+	healthResponse := struct {
+		State      string            `json:"state"`
+		GroupState map[string]string `json:"group_state"`
+	}{
+		State:      stateString,
+		GroupState: map[string]string{},
+	}
+
+	for groupName, groupStatus := range groupStatus {
+		healthResponse.GroupState[groupName] = map[bool]string{true: health.State, false: "job-health-executable-fail"}[groupStatus]
+	}
+
+	responseBytes, err := json.Marshal(healthResponse)
+	if err != nil {
+		c.logger.Error(logTag, "Failed to marshal response data %s. error: %s", responseBytes, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(responseBytes)
 }
