@@ -123,7 +123,7 @@ func (c *concreteHealthServer) healthEntryPoint(w http.ResponseWriter, r *http.R
 	}
 
 	for groupName, groupStatus := range groupStatus {
-		healthResponse.GroupState[groupName] = map[bool]string{true: health.State, false: "job-health-executable-fail"}[groupStatus]
+		healthResponse.GroupState[groupName] = map[bool]string{true: "running", false: "job-health-executable-fail"}[groupStatus]
 	}
 
 	responseBytes, err := json.Marshal(healthResponse)

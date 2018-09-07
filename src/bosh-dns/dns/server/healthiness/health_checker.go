@@ -61,9 +61,16 @@ func (hc *healthChecker) GetStatus(ip string) HealthState {
 func (hc *healthChecker) GetStatus2(ip string) map[string]string {
 	endpoint := fmt.Sprintf("https://%s/health", net.JoinHostPort(ip, fmt.Sprintf("%d", hc.port)))
 
-	response, _ := hc.client.Get(endpoint)
+	response, err := hc.client.Get(endpoint)
+	if err != nil {
+		return nil
+	}
 
-	responseBytes, _ := ioutil.ReadAll(response.Body)
+	responseBytes, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil
+	}
+
 	type healthStuff struct {
 		GroupState map[string]string `json:"group_state"`
 	}
