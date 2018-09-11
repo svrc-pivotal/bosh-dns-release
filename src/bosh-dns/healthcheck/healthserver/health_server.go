@@ -24,20 +24,18 @@ type HealthExecutable interface {
 }
 
 type concreteHealthServer struct {
-	logger             boshlog.Logger
-	fs                 system.FileSystem
-	healthJsonFileName string
-	healthExecutable   HealthExecutable
+	logger           boshlog.Logger
+	fs               system.FileSystem
+	healthExecutable HealthExecutable
 }
 
 const logTag = "healthServer"
 
-func NewHealthServer(logger boshlog.Logger, fs system.FileSystem, healthFileName string, healthExecutable HealthExecutable) HealthServer {
+func NewHealthServer(logger boshlog.Logger, fs system.FileSystem, healthExecutable HealthExecutable) HealthServer {
 	return &concreteHealthServer{
-		logger:             logger,
-		fs:                 fs,
-		healthJsonFileName: healthFileName,
-		healthExecutable:   healthExecutable,
+		logger:           logger,
+		fs:               fs,
+		healthExecutable: healthExecutable,
 	}
 }
 
@@ -86,44 +84,22 @@ func (c *concreteHealthServer) healthEntryPoint(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	healthRaw, err := ioutil.ReadFile(c.healthJsonFileName)
-
-	if err != nil {
-		c.logger.Error(logTag, "Failed to read healthcheck data %s. error: %s", healthRaw, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	var health struct {
-		State string `json:"state"`
-	}
-
-	err = json.Unmarshal(healthRaw, &health)
-	if err != nil {
-		c.logger.Error(logTag, "Failed to unmarshal healthcheck data %s. error: %s", healthRaw, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Add("Content-Type", "application/json")
 
 	status, groupStatus := c.healthExecutable.Status()
-	stateString := health.State
 
-	if !status {
-		stateString = "job-health-executable-fail"
-	}
+	var statusBoolToString = map[bool]string{true: "running", false: "failing"}
 
 	healthResponse := struct {
 		State      string            `json:"state"`
 		GroupState map[string]string `json:"group_state"`
 	}{
-		State:      stateString,
+		State:      statusBoolToString[status],
 		GroupState: map[string]string{},
 	}
 
 	for groupName, groupStatus := range groupStatus {
-		healthResponse.GroupState[groupName] = map[bool]string{true: "running", false: "job-health-executable-fail"}[groupStatus]
+		healthResponse.GroupState[groupName] = statusBoolToString[groupStatus]
 	}
 
 	responseBytes, err := json.Marshal(healthResponse)

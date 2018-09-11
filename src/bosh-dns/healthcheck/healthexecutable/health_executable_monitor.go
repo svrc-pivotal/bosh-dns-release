@@ -16,6 +16,7 @@ import (
 
 type HealthExecutableMonitor struct {
 	healthExecutablePaths []string
+	healthJsonFileName    string
 	cmdRunner             system.CmdRunner
 	clock                 clock.Clock
 	interval              time.Duration
@@ -26,8 +27,11 @@ type HealthExecutableMonitor struct {
 	logger                logger.Logger
 }
 
+const logTag = "HealthExecutableMonitor"
+
 func NewHealthExecutableMonitor(
 	healthExecutablePaths []string,
+	healthJsonFileName string,
 	cmdRunner system.CmdRunner,
 	clock clock.Clock,
 	interval time.Duration,
@@ -36,6 +40,7 @@ func NewHealthExecutableMonitor(
 ) *HealthExecutableMonitor {
 	monitor := &HealthExecutableMonitor{
 		healthExecutablePaths: healthExecutablePaths,
+		healthJsonFileName:    healthJsonFileName,
 		cmdRunner:             cmdRunner,
 		clock:                 clock,
 		interval:              interval,
@@ -46,7 +51,6 @@ func NewHealthExecutableMonitor(
 
 	monitor.runChecks()
 	go monitor.run()
-
 	return monitor
 }
 
@@ -58,12 +62,12 @@ func (m *HealthExecutableMonitor) Status() (bool, map[string]bool) {
 
 func (m *HealthExecutableMonitor) run() {
 	timer := m.clock.NewTimer(m.interval)
-	m.logger.Debug("HealthExecutableMonitor", "starting monitor for [%s] with interval %v", strings.Join(m.healthExecutablePaths, ", "), m.interval)
+	m.logger.Debug(logTag, "starting monitor for [%s] with interval %v", strings.Join(m.healthExecutablePaths, ", "), m.interval)
 
 	for {
 		select {
 		case <-m.shutdown:
-			m.logger.Debug("HealthExecutableMonitor", "stopping")
+			m.logger.Debug(logTag, "stopping")
 			timer.Stop()
 			return
 		case <-timer.C():
@@ -76,6 +80,26 @@ func (m *HealthExecutableMonitor) run() {
 func (m *HealthExecutableMonitor) runChecks() {
 	var allSucceeded = true
 
+	healthRaw, err := ioutil.ReadFile(m.healthJsonFileName)
+	if err != nil {
+		allSucceeded = false
+		m.logger.Error(logTag, "Failed to read healthcheck data %s. error: %s", healthRaw, err)
+	}
+
+	var health struct {
+		State string `json:"state"`
+	}
+
+	if allSucceeded {
+		err = json.Unmarshal(healthRaw, &health)
+		if err != nil {
+			allSucceeded = false
+			m.logger.Error(logTag, "Failed to unmarshal healthcheck data %s. error: %s", healthRaw, err)
+		}
+	}
+
+	allSucceeded = health.State == "running"
+
 	jobStatus := map[string]bool{}
 
 	for _, executable := range m.healthExecutablePaths {
@@ -84,7 +108,7 @@ func (m *HealthExecutableMonitor) runChecks() {
 		_, _, exitStatus, err := m.runExecutable(executable)
 		if err != nil {
 			jobSucceeded = false
-			m.logger.Error("HealthExecutableMonitor", "Error occurred executing '%s': %v", executable, err)
+			m.logger.Error(logTag, "Error occurred executing '%s': %v", executable, err)
 		} else if exitStatus != 0 {
 			jobSucceeded = false
 		}
@@ -112,7 +136,7 @@ func (m *HealthExecutableMonitor) runChecks() {
 		job := strings.SplitN(strings.TrimPrefix(boshLinksPath, "/var/vcap/jobs/"), "/", 2)[0]
 		linkBytes, err := ioutil.ReadFile(boshLinksPath)
 		if err != nil {
-			m.logger.Error("HealthExecutableMonitor", "Error reading '%s': %v", boshLinksPath, err)
+			m.logger.Error(logTag, "Error reading '%s': %v", boshLinksPath, err)
 			continue
 		}
 
@@ -122,7 +146,7 @@ func (m *HealthExecutableMonitor) runChecks() {
 
 		err = json.Unmarshal(linkBytes, &parsedResponse)
 		if err != nil {
-			m.logger.Error("HealthExecutableMonitor", "Error unmarshalling '%s': %v", boshLinksPath, err)
+			m.logger.Error(logTag, "Error unmarshalling '%s': %v", boshLinksPath, err)
 			continue
 		}
 

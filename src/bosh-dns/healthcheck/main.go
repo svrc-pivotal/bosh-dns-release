@@ -50,6 +50,7 @@ func mainExitCode() int {
 
 	healthExecutableMonitor := healthexecutable.NewHealthExecutableMonitor(
 		executablePaths,
+		config.HealthFileName,
 		cmdRunner,
 		clock.NewClock(),
 		interval,
@@ -57,7 +58,7 @@ func mainExitCode() int {
 		logger,
 	)
 
-	healthServer = healthserver.NewHealthServer(logger, fs, config.HealthFileName, healthExecutableMonitor)
+	healthServer = healthserver.NewHealthServer(logger, fs, healthExecutableMonitor)
 	healthServer.Serve(config)
 
 	sigterm := make(chan os.Signal, 1)
