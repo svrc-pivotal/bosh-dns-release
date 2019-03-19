@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"strconv"
@@ -214,15 +215,24 @@ func (r *RecordSet) update() {
 	}
 }
 
+type AliasSpike struct {
+	GroupID            string `json:"group_id"`
+	RootDomain         string `json:"root_domain"`
+	PlaceholderType    string `json:"placeholder_type"`
+	HealthFilter       string `json:"health_filter"`
+	InitialHealthCheck string `json:"initial_health_check"`
+}
+
 func createFromJSON(j []byte, logger boshlog.Logger) ([]record.Record, aliases.Config, error) {
 	swap := struct {
-		Keys    []string            `json:"record_keys"`
-		Infos   [][]interface{}     `json:"record_infos"`
-		Aliases map[string][]string `json:"aliases"`
+		Keys    []string                `json:"record_keys"`
+		Infos   [][]interface{}         `json:"record_infos"`
+		Aliases map[string][]AliasSpike `json:"aliases"`
 	}{}
 
 	err := json.Unmarshal(j, &swap)
 	if err != nil {
+		logger.Warn("RecordSet", "Unable to parse records file. Error: %v", err)
 		return nil, aliases.NewConfig(), err
 	}
 
@@ -318,11 +328,54 @@ func createFromJSON(j []byte, logger boshlog.Logger) ([]record.Record, aliases.C
 	}
 
 	var updatedAliases aliases.Config
-	if updatedAliases, err = aliases.NewConfigFromMap(swap.Aliases); err != nil {
+	aliasesToConfigure := encodeAliasesIntoQueries(records, swap.Aliases)
+	if updatedAliases, err = aliases.NewConfigFromMap(aliasesToConfigure); err != nil {
+		logger.Warn("RecordSet", "Unable to configure aliases from records. Error: %v", err)
+		// TODO: return records?
 		return nil, aliases.NewConfig(), err
 	}
 
 	return records, updatedAliases, nil
+}
+
+func encodeAliasesIntoQueries(rs []record.Record, as map[string][]AliasSpike) map[string][]string {
+	aliases := make(map[string][]string)
+	for domain, definitions := range as {
+		domain := dns.Fqdn(domain)
+		for _, definition := range definitions {
+			if definition.PlaceholderType == "uuid" {
+				for _, record := range rs {
+					found := false
+					for _, groupID := range record.GroupIDs {
+						if groupID == definition.GroupID {
+							found = true
+							break
+						}
+					}
+
+					if found {
+						uuidDomain := strings.Replace(domain, "_", record.ID, 1)
+						if _, ok := aliases[uuidDomain]; !ok {
+							aliases[uuidDomain] = []string{}
+						}
+						aliases[uuidDomain] = append(
+							aliases[uuidDomain],
+							dns.Fqdn(fmt.Sprintf("q-s0m%s.q-g%s.%s", record.NumID, definition.GroupID, definition.RootDomain)),
+						)
+					}
+				}
+			} else {
+				if _, ok := aliases[domain]; !ok {
+					aliases[domain] = []string{}
+				}
+				aliases[domain] = append(
+					aliases[domain],
+					dns.Fqdn(fmt.Sprintf("q-s0.q-g%s.%s", definition.GroupID, definition.RootDomain)),
+				)
+			}
+		}
+	}
+	return aliases
 }
 
 func assertStringIntegerValue(field *string, info []interface{}, fieldIdx int, fieldName string, infoIdx int, logger boshlog.Logger) bool {

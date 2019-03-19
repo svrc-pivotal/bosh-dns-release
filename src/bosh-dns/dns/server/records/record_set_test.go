@@ -365,12 +365,17 @@ var _ = Describe("RecordSet", func() {
 
 			BeforeEach(func() {
 				jsonBytes := []byte(`{
-				"record_keys": ["id", "num_id", "instance_group", "az", "az_id", "network", "network_id", "deployment", "ip", "domain"],
+				"record_keys": ["id", "num_id", "group_ids", "instance_group", "az", "az_id", "network", "network_id", "deployment", "ip", "domain"],
 				"record_infos": [
-					["instance0", "0", "my-group", "az1", "1", "my-network", "1", "my-deployment", "234.234.234.234", "bosh."]
+					["instance0", "0", ["2"], "my-group", "az1", "1", "my-network", "1", "my-deployment", "234.234.234.234", "bosh."]
 				],
 				"aliases": {
-				  "foodomain.bar.": ["instance0.my-group.my-network.my-deployment.bosh."]
+				  "foodomain.bar.": [
+						{
+							"group_id": "2",
+							"root_domain": "bosh"
+						}
+					]
 				}
 			}`)
 				fileReader.GetReturns(jsonBytes, nil)
@@ -824,17 +829,118 @@ var _ = Describe("RecordSet", func() {
 	})
 
 	Context("when resolving aliases", func() {
-		BeforeEach(func() {
-			aliasList = mustNewConfigFromMap(map[string][]string{
-				"alias1":              {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.a1_domain2."},
-				"alias2":              {"q-s0.my-group.my-network.my-deployment.a2_domain1."},
-				"ipalias":             {"5.5.5.5"},
-				"_.alias2":            {"_.my-group.my-network.my-deployment.a2_domain1.", "_.my-group.my-network.my-deployment.b2_domain1."},
-				"nonexistentalias":    {"q-&&&&&.my-group.my-network.my-deployment.b2_domain1.", "q-&&&&&.my-group.my-network.my-deployment.a2_domain1."},
-				"aliaswithonefailure": {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.domaindoesntexist."},
+		Context("when the aliases are provided", func() {
+			BeforeEach(func() {
+				aliasList = mustNewConfigFromMap(map[string][]string{
+					"alias1":              {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.a1_domain2."},
+					"alias2":              {"q-s0.my-group.my-network.my-deployment.a2_domain1."},
+					"ipalias":             {"5.5.5.5"},
+					"_.alias2":            {"_.my-group.my-network.my-deployment.a2_domain1.", "_.my-group.my-network.my-deployment.b2_domain1."},
+					"nonexistentalias":    {"q-&&&&&.my-group.my-network.my-deployment.b2_domain1.", "q-&&&&&.my-group.my-network.my-deployment.a2_domain1."},
+					"aliaswithonefailure": {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.domaindoesntexist."},
+				})
+
+				jsonBytes := []byte(`{
+					"record_keys":
+						["id", "num_id", "instance_group", "group_ids", "az", "az_id", "network", "network_id", "deployment", "ip", "domain", "instance_index"],
+					"record_infos": [
+						["instance0", "0", "my-group", ["1"], "az1", "1", "my-network", "1", "my-deployment", "1.1.1.1", "a2_domain1", 1],
+						["instance1", "1", "my-group", ["1"], "az2", "2", "my-network", "1", "my-deployment", "2.2.2.2", "b2_domain1", 2],
+						["instance0", "0", "my-group", ["1"], "az1", "1", "my-network", "1", "my-deployment", "3.3.3.3", "a1_domain1", 1],
+						["instance1", "1", "my-group", ["1"], "az2", "2", "my-network", "1", "my-deployment", "4.4.4.4", "a1_domain2", 2]
+					]
+				}`)
+				fileReader.GetReturns(jsonBytes, nil)
+
+				fakeFilterer.FilterStub = func(mm criteria.MatchMaker, recs []record.Record) []record.Record {
+					crit := mm.(criteria.Criteria)
+
+					switch crit["fqdn"][0] {
+					case "q-s0.my-group.my-network.my-deployment.a1_domain1.":
+						return []record.Record{recs[2]}
+					case "q-s0.my-group.my-network.my-deployment.a1_domain2.":
+						return []record.Record{recs[3]}
+					case "q-s0.my-group.my-network.my-deployment.a2_domain1.":
+						return []record.Record{recs[0]}
+					case "q-s0.my-group.my-network.my-deployment.b2_domain1.":
+						return []record.Record{recs[1]}
+					}
+					return []record.Record{}
+				}
+
+				var err error
+				recordSet, err = records.NewRecordSet(fileReader, aliasList, fakeHealthWatcher, uint(5), shutdownChan, fakeLogger, fakeFiltererFactory)
+
+				Expect(err).ToNot(HaveOccurred())
 			})
 
-			jsonBytes := []byte(`{
+			Describe("expanding aliases", func() {
+				It("expands aliases to hosts", func() {
+					expandedAliases := recordSet.ExpandAliases("q-s0.alias2.")
+					Expect(expandedAliases).To(Equal([]string{"q-s0.my-group.my-network.my-deployment.a2_domain1.",
+						"q-s0.my-group.my-network.my-deployment.b2_domain1.",
+					}))
+				})
+			})
+
+			Context("when the message contains a underscore style alias", func() {
+				It("translates the question preserving the capture", func() {
+					resolutions, err := recordSet.Resolve("q-s0.alias2.")
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(resolutions).To(Equal([]string{"1.1.1.1", "2.2.2.2"}))
+				})
+
+				It("returns a non successful return code when a resolution fails", func() {
+					_, err := recordSet.Resolve("nonexistentalias.")
+
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError(ContainSubstring("failures occurred when resolving alias domains:")))
+				})
+			})
+
+			Context("when resolving an aliased host", func() {
+				It("resolves the alias", func() {
+					resolutions, err := recordSet.Resolve("alias2.")
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(resolutions).To(Equal([]string{"1.1.1.1"}))
+				})
+
+				Context("when alias points to an IP directly", func() {
+					It("resolves the alias to the IP", func() {
+						resolutions, err := recordSet.Resolve("ipalias.")
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(resolutions).To(Equal([]string{"5.5.5.5"}))
+					})
+				})
+
+				Context("when alias resolves to multiple hosts", func() {
+					It("resolves the alias to all underlying hosts", func() {
+						resolutions, err := recordSet.Resolve("alias1.")
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(resolutions).To(Equal([]string{"3.3.3.3", "4.4.4.4"}))
+					})
+
+					Context("and a subset of the resolutions fails", func() {
+						It("returns the ones that succeeded", func() {
+							resolutions, err := recordSet.Resolve("aliaswithonefailure.")
+
+							Expect(err).ToNot(HaveOccurred())
+							Expect(resolutions).To(Equal([]string{"3.3.3.3"}))
+						})
+					})
+				})
+			})
+		})
+
+		Context("when the aliases are derived in records file", func() {
+			BeforeEach(func() {
+				aliasList = mustNewConfigFromMap(map[string][]string{})
+
+				jsonBytes := []byte(`{
 					"record_keys":
 						["id", "num_id", "instance_group", "group_ids", "az", "az_id", "network", "network_id", "deployment", "ip", "domain", "instance_index"],
 					"record_infos": [
@@ -844,98 +950,164 @@ var _ = Describe("RecordSet", func() {
 						["instance1", "1", "my-group", ["1"], "az2", "2", "my-network", "1", "my-deployment", "4.4.4.4", "a1_domain2", 2]
 					],
 					"aliases": {
-						"globalalias": ["q-s0.my-group.my-network.my-deployment.a2_domain1."]
+						"globalalias": [{
+							"group_id": "1",
+							"root_domain": "a2_domain1"
+						}]
 					}
 				}`)
-			fileReader.GetReturns(jsonBytes, nil)
+				fileReader.GetReturns(jsonBytes, nil)
 
-			fakeFilterer.FilterStub = func(mm criteria.MatchMaker, recs []record.Record) []record.Record {
-				crit := mm.(criteria.Criteria)
+				fakeFilterer.FilterStub = func(mm criteria.MatchMaker, recs []record.Record) []record.Record {
+					crit := mm.(criteria.Criteria)
 
-				switch crit["fqdn"][0] {
-				case "q-s0.my-group.my-network.my-deployment.a1_domain1.":
-					return []record.Record{recs[2]}
-				case "q-s0.my-group.my-network.my-deployment.a1_domain2.":
-					return []record.Record{recs[3]}
-				case "q-s0.my-group.my-network.my-deployment.a2_domain1.":
-					return []record.Record{recs[0]}
-				case "q-s0.my-group.my-network.my-deployment.b2_domain1.":
-					return []record.Record{recs[1]}
+					switch crit["fqdn"][0] {
+					case "q-s0.q-g1.a2_domain1.":
+						return []record.Record{recs[0]}
+					}
+					return []record.Record{}
 				}
-				return []record.Record{}
-			}
 
-			var err error
-			recordSet, err = records.NewRecordSet(fileReader, aliasList, fakeHealthWatcher, uint(5), shutdownChan, fakeLogger, fakeFiltererFactory)
-
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Describe("expanding aliases", func() {
-			It("expands aliases to hosts", func() {
-				expandedAliases := recordSet.ExpandAliases("q-s0.alias2.")
-				Expect(expandedAliases).To(Equal([]string{"q-s0.my-group.my-network.my-deployment.a2_domain1.",
-					"q-s0.my-group.my-network.my-deployment.b2_domain1.",
-				}))
-			})
-		})
-
-		Context("when the message contains a underscore style alias", func() {
-			It("translates the question preserving the capture", func() {
-				resolutions, err := recordSet.Resolve("q-s0.alias2.")
+				var err error
+				recordSet, err = records.NewRecordSet(fileReader, aliasList, fakeHealthWatcher, uint(5), shutdownChan, fakeLogger, fakeFiltererFactory)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(resolutions).To(Equal([]string{"1.1.1.1", "2.2.2.2"}))
 			})
 
-			It("returns a non successful return code when a resolution fails", func() {
-				_, err := recordSet.Resolve("nonexistentalias.")
+			Describe("ExpandAliases (aakash: this is part of Resolve tests below, much more extensive)", func() {
+			})
 
-				Expect(err).To(HaveOccurred())
-				Expect(err).To(MatchError(ContainSubstring("failures occurred when resolving alias domains:")))
+			Context("when resolving an aliased host", func() {
+				Context("when the alias is global", func() {
+					It("resolves the alias", func() {
+						resolutions, err := recordSet.Resolve("globalalias.")
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(resolutions).To(Equal([]string{"1.1.1.1"}))
+					})
+				})
 			})
 		})
 
-		Context("when resolving an aliased host", func() {
-			It("resolves the alias", func() {
-				resolutions, err := recordSet.Resolve("alias2.")
+		Context("when aliases are merged from multiple sources", func() {
+			BeforeEach(func() {
+				aliasList = mustNewConfigFromMap(map[string][]string{
+					"alias1":              {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.a1_domain2."},
+					"alias2":              {"q-s0.my-group.my-network.my-deployment.a2_domain1."},
+					"ipalias":             {"5.5.5.5"},
+					"_.alias2":            {"_.my-group.my-network.my-deployment.a2_domain1.", "_.my-group.my-network.my-deployment.b2_domain1."},
+					"nonexistentalias":    {"q-&&&&&.my-group.my-network.my-deployment.b2_domain1.", "q-&&&&&.my-group.my-network.my-deployment.a2_domain1."},
+					"aliaswithonefailure": {"q-s0.my-group.my-network.my-deployment.a1_domain1.", "q-s0.my-group.my-network.my-deployment.domaindoesntexist."},
+				})
+
+				jsonBytes := []byte(`{
+					"record_keys":
+						["id", "num_id", "instance_group", "group_ids", "az", "az_id", "network", "network_id", "deployment", "ip", "domain", "instance_index"],
+					"record_infos": [
+						["instance0", "0", "my-group", ["1"], "az1", "1", "my-network", "1", "my-deployment", "1.1.1.1", "a2_domain1", 1],
+						["instance1", "1", "my-group", ["1"], "az2", "2", "my-network", "1", "my-deployment", "2.2.2.2", "b2_domain1", 2],
+						["instance0", "0", "my-group", ["1"], "az1", "1", "my-network", "1", "my-deployment", "3.3.3.3", "a1_domain1", 1],
+						["instance1", "1", "my-group", ["1"], "az2", "2", "my-network", "1", "my-deployment", "4.4.4.4", "a1_domain2", 2]
+					],
+					"aliases": {
+						"globalalias": [{
+							"group_id": "1",
+							"root_domain": "a2_domain1"
+						}]
+					}
+				}`)
+				fileReader.GetReturns(jsonBytes, nil)
+
+				fakeFilterer.FilterStub = func(mm criteria.MatchMaker, recs []record.Record) []record.Record {
+					crit := mm.(criteria.Criteria)
+
+					switch crit["fqdn"][0] {
+					case "q-s0.my-group.my-network.my-deployment.a1_domain1.":
+						return []record.Record{recs[2]}
+					case "q-s0.my-group.my-network.my-deployment.a1_domain2.":
+						return []record.Record{recs[3]}
+					case "q-s0.my-group.my-network.my-deployment.a2_domain1.":
+						return []record.Record{recs[0]}
+					case "q-s0.my-group.my-network.my-deployment.b2_domain1.":
+						return []record.Record{recs[1]}
+					case "q-s0.q-g1.a2_domain1.":
+						return []record.Record{recs[0]}
+					}
+					return []record.Record{}
+				}
+
+				var err error
+				recordSet, err = records.NewRecordSet(fileReader, aliasList, fakeHealthWatcher, uint(5), shutdownChan, fakeLogger, fakeFiltererFactory)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(resolutions).To(Equal([]string{"1.1.1.1"}))
 			})
 
-			Context("when the alias is global", func() {
+			Describe("expanding aliases", func() {
+				It("expands aliases to hosts", func() {
+					expandedAliases := recordSet.ExpandAliases("q-s0.alias2.")
+					Expect(expandedAliases).To(Equal([]string{"q-s0.my-group.my-network.my-deployment.a2_domain1.",
+						"q-s0.my-group.my-network.my-deployment.b2_domain1.",
+					}))
+				})
+			})
+
+			Context("when the message contains a underscore style alias", func() {
+				It("translates the question preserving the capture", func() {
+					resolutions, err := recordSet.Resolve("q-s0.alias2.")
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(resolutions).To(Equal([]string{"1.1.1.1", "2.2.2.2"}))
+				})
+
+				It("returns a non successful return code when a resolution fails", func() {
+					_, err := recordSet.Resolve("nonexistentalias.")
+
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError(ContainSubstring("failures occurred when resolving alias domains:")))
+				})
+			})
+
+			Context("when resolving an aliased host", func() {
 				It("resolves the alias", func() {
-					resolutions, err := recordSet.Resolve("globalalias.")
+					resolutions, err := recordSet.Resolve("alias2.")
 
 					Expect(err).ToNot(HaveOccurred())
 					Expect(resolutions).To(Equal([]string{"1.1.1.1"}))
 				})
-			})
 
-			Context("when alias points to an IP directly", func() {
-				It("resolves the alias to the IP", func() {
-					resolutions, err := recordSet.Resolve("ipalias.")
-
-					Expect(err).ToNot(HaveOccurred())
-					Expect(resolutions).To(Equal([]string{"5.5.5.5"}))
-				})
-			})
-
-			Context("when alias resolves to multiple hosts", func() {
-				It("resolves the alias to all underlying hosts", func() {
-					resolutions, err := recordSet.Resolve("alias1.")
-
-					Expect(err).ToNot(HaveOccurred())
-					Expect(resolutions).To(Equal([]string{"3.3.3.3", "4.4.4.4"}))
-				})
-
-				Context("and a subset of the resolutions fails", func() {
-					It("returns the ones that succeeded", func() {
-						resolutions, err := recordSet.Resolve("aliaswithonefailure.")
+				Context("when the alias is global", func() {
+					It("resolves the alias", func() {
+						resolutions, err := recordSet.Resolve("globalalias.")
 
 						Expect(err).ToNot(HaveOccurred())
-						Expect(resolutions).To(Equal([]string{"3.3.3.3"}))
+						Expect(resolutions).To(Equal([]string{"1.1.1.1"}))
+					})
+				})
+
+				Context("when alias points to an IP directly", func() {
+					It("resolves the alias to the IP", func() {
+						resolutions, err := recordSet.Resolve("ipalias.")
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(resolutions).To(Equal([]string{"5.5.5.5"}))
+					})
+				})
+
+				Context("when alias resolves to multiple hosts", func() {
+					It("resolves the alias to all underlying hosts", func() {
+						resolutions, err := recordSet.Resolve("alias1.")
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(resolutions).To(Equal([]string{"3.3.3.3", "4.4.4.4"}))
+					})
+
+					Context("and a subset of the resolutions fails", func() {
+						It("returns the ones that succeeded", func() {
+							resolutions, err := recordSet.Resolve("aliaswithonefailure.")
+
+							Expect(err).ToNot(HaveOccurred())
+							Expect(resolutions).To(Equal([]string{"3.3.3.3"}))
+						})
 					})
 				})
 			})
