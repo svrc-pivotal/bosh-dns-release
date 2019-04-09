@@ -20,7 +20,7 @@ params:
   BBL_AWS_SECRET_ACCESS_KEY: ""
   BBL_AWS_REGION: us-west-2
   BBL_IAAS: aws
-  BBL_STATE_DIR: test-stress/bbl-state
+  BBL_STATE_DIR: ~
 
 run:
   path: bosh-dns-release/ci/tasks/test-stress/setup-env.sh

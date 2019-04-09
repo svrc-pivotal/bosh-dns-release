@@ -17,7 +17,7 @@ outputs:
 params:
   BBL_AWS_ACCESS_KEY_ID: ""
   BBL_AWS_SECRET_ACCESS_KEY: ""
-  BBL_STATE_DIR: test-stress/bbl-state
+  BBL_STATE_DIR: ~
 
 run:
   path: bosh-dns-release/ci/tasks/test-stress/destroy-env.sh

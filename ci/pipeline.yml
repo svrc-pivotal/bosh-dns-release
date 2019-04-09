@@ -424,7 +424,7 @@ jobs:
           BBL_AWS_SECRET_ACCESS_KEY: {{bbl_test_stress_secret_access_key}}
           BBL_AWS_REGION: us-west-2
           BBL_IAAS: aws
-          BBL_STATE_DIR: test-stress/bbl-state
+          BBL_STATE_DIR: test-stress-1.10.x/bbl-state
         ensure:
           put: envs
           params:
@@ -434,15 +434,21 @@ jobs:
         file: bosh-dns-release/ci/tasks/test-stress/deploy-docker.yml
         input_mapping:
           bbl-state: updated-bbl-state
+        params:
+          BBL_STATE_SUBDIRECTORY: test-stress-1.10.x/bbl-state
       - task: deploy-containers
         file: bosh-dns-release/ci/tasks/test-stress/deploy-n.yml
         input_mapping:
           stemcell: warden-stemcell
           bbl-state: updated-bbl-state
+        params:
+          BBL_STATE_SUBDIRECTORY: test-stress-1.10.x/bbl-state
       - task: stress-containers
         file: bosh-dns-release/ci/tasks/test-stress/run-errand.yml
         input_mapping:
           bbl-state: updated-bbl-state
+        params:
+          BBL_STATE_SUBDIRECTORY: test-stress-1.10.x/bbl-state
       ensure:
         task: destroy-env
         file: bosh-dns-release/ci/tasks/test-stress/destroy-env.yml
@@ -451,7 +457,7 @@ jobs:
         params:
           BBL_AWS_ACCESS_KEY_ID: {{bbl_test_stress_access_key_id}}
           BBL_AWS_SECRET_ACCESS_KEY: {{bbl_test_stress_secret_access_key}}
-          BBL_STATE_DIR: test-stress/bbl-state
+          BBL_STATE_DIR: test-stress-1.10.x/bbl-state
         ensure:
           put: envs
           params:
@@ -653,10 +659,6 @@ resources:
     branch: master
     uri: git@github.com:cloudfoundry/bosh-bbl-ci-envs.git
     private_key: {{envs_private_key}}
-
-- name: every-10m
-  type: time
-  source: { interval: 10m }
 
 - name: stemcell
   type: bosh-io-stemcell

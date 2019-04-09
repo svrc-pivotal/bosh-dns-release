@@ -16,7 +16,7 @@ inputs:
 params:
   DEPLOYMENTS_OF_100: 10
   PARALLEL_DEPLOYMENTS: 5
-  BBL_STATE_SUBDIRECTORY: test-stress/bbl-state
+  BBL_STATE_SUBDIRECTORY: ~
 
 run:
   path: bosh-dns-release/ci/tasks/test-stress/deploy-n.sh
