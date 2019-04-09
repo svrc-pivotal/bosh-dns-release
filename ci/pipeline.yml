@@ -8,12 +8,12 @@ groups:
   - test-unit-windows
   - test-unit-release
   - create-release
-  - test-performance
-  - test-performance-windows
   - test-acceptance
   - test-acceptance-ubuntu-xenial
-  - test-acceptance-windows
+  - test-acceptance-windows2012R2
   - test-acceptance-windows2016
+  - test-acceptance-windows1803
+  - test-acceptance-windows2019
   - test-stress
   - brats-ubuntu
   - finalize-release
@@ -100,43 +100,6 @@ jobs:
       params:
         file: "release/bosh-dns-dev-release.tgz"
 
-- name: test-performance
-  interruptible: true
-  public: true
-  serial: true
-  plan:
-    - get: every-10m
-      trigger: true
-    - get: bosh-dns-release
-      trigger: true
-      passed: [create-release]
-    - task: test-performance
-      tags: ["dns-performance"]
-      privileged: true
-      file: bosh-dns-release/ci/tasks/test-performance.yml
-      params:
-        ZONES_JSON_HASH: {{zones_json_hash}}
-        DATADOG_API_KEY: {{datadog_api_key}}
-        DATADOG_ENVIRONMENT_TAG: bosh-dns-ci-linux
-
-- name: test-performance-windows
-  interruptible: true
-  public: true
-  serial: true
-  plan:
-    - get: every-10m
-      trigger: true
-    - get: bosh-dns-release
-      trigger: true
-      passed: [create-release]
-    - task: test-performance
-      file: bosh-dns-release/ci/tasks/windows/test-performance-windows.yml
-      timeout: 1h
-      params:
-        ZONES_JSON_HASH: {{zones_json_hash}}
-        DATADOG_API_KEY: {{datadog_api_key}}
-        DATADOG_ENVIRONMENT_TAG: bosh-dns-ci-windows
-
 - name: test-acceptance
   public: true
   serial: true
@@ -175,7 +138,7 @@ jobs:
       params:
         BASE_STEMCELL: ubuntu-xenial
 
-- name: test-acceptance-windows
+- name: test-acceptance-windows2012R2
   public: true
   serial: true
   plan:
@@ -198,7 +161,7 @@ jobs:
         file: bosh-dns-release/ci/tasks/windows/bbl-up.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2012R2
+          ENV_NAME: windows2012R2-1.10.x
         ensure:
           put: envs
           params:
@@ -207,32 +170,32 @@ jobs:
       - task: setup-deploy
         file: bosh-dns-release/ci/tasks/windows/setup-deploy.yml
         params:
-          ENV_NAME: windows2012R2
+          ENV_NAME: windows2012R2-1.10.x
       - aggregate:
         - task: windows
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
           params:
             WINDOWS_OS_VERSION: windows2012R2
-            ENV_NAME: windows2012R2
+            ENV_NAME: windows2012R2-1.10.x
           timeout: 1h
         - task: windows-nameserver-disabled
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
           params:
             WINDOWS_OS_VERSION: windows2012R2
-            ENV_NAME: windows2012R2
+            ENV_NAME: windows2012R2-1.10.x
           timeout: 1h
         - task: windows-shared
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
           params:
             WINDOWS_OS_VERSION: windows2012R2
-            ENV_NAME: windows2012R2
+            ENV_NAME: windows2012R2-1.10.x
           timeout: 1h
       ensure:
         task: bbl-destroy
         file: bosh-dns-release/ci/tasks/windows/bbl-destroy.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2012R2
+          ENV_NAME: windows2012R2-1.10.x
         ensure:
           put: envs
           params:
@@ -264,7 +227,7 @@ jobs:
         file: bosh-dns-release/ci/tasks/windows/bbl-up.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2016
+          ENV_NAME: windows2016-1.10.x
         ensure:
           put: envs
           params:
@@ -273,32 +236,164 @@ jobs:
       - task: setup-deploy
         file: bosh-dns-release/ci/tasks/windows/setup-deploy.yml
         params:
-          ENV_NAME: windows2016
+          ENV_NAME: windows2016-1.10.x
       - aggregate:
         - task: windows
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
           params:
             WINDOWS_OS_VERSION: windows2016
-            ENV_NAME: windows2016
+            ENV_NAME: windows2016-1.10.x
           timeout: 1h
         - task: windows-nameserver-disabled
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
           params:
             WINDOWS_OS_VERSION: windows2016
-            ENV_NAME: windows2016
+            ENV_NAME: windows2016-1.10.x
           timeout: 1h
         - task: windows-shared
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
           params:
             WINDOWS_OS_VERSION: windows2016
-            ENV_NAME: windows2016
+            ENV_NAME: windows2016-1.10.x
           timeout: 1h
       ensure:
         task: bbl-destroy
         file: bosh-dns-release/ci/tasks/windows/bbl-destroy.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2016
+          ENV_NAME: windows2016-1.10.x
+        ensure:
+          put: envs
+          params:
+            repository: envs
+            rebase: true
+
+- name: test-acceptance-windows1803
+  public: true
+  serial: true
+  plan:
+  - do:
+    - aggregate:
+      - get: bosh-dns-release
+        passed:
+        - create-release
+        trigger: true
+      - get: envs
+      - get: bosh-deployment
+      - get: gcp-linux-stemcell
+      - get: bosh-stemcell-windows
+        resource: windows-1803-stemcell
+      - get: bosh-candidate-release
+      - get: candidate-release
+        passed:
+        - create-release
+        trigger: true
+    - do:
+      - task: bbl-up
+        file: bosh-dns-release/ci/tasks/windows/bbl-up.yml
+        params:
+          BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
+          ENV_NAME: windows1803-1.10.x
+        ensure:
+          put: envs
+          params:
+            repository: envs
+            rebase: true
+      - task: setup-deploy
+        file: bosh-dns-release/ci/tasks/windows/setup-deploy.yml
+        params:
+          ENV_NAME: windows1803-1.10.x
+      - aggregate:
+        - task: windows
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
+          params:
+            WINDOWS_OS_VERSION: windows1803
+            ENV_NAME: windows1803-1.10.x
+          timeout: 1h
+        - task: windows-nameserver-disabled
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
+          params:
+            WINDOWS_OS_VERSION: windows1803
+            ENV_NAME: windows1803-1.10.x
+          timeout: 1h
+        - task: windows-shared
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
+          params:
+            WINDOWS_OS_VERSION: windows1803
+            ENV_NAME: windows1803-1.10.x
+          timeout: 1h
+      ensure:
+        task: bbl-destroy
+        file: bosh-dns-release/ci/tasks/windows/bbl-destroy.yml
+        params:
+          BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
+          ENV_NAME: windows1803-1.10.x
+        ensure:
+          put: envs
+          params:
+            repository: envs
+            rebase: true
+
+- name: test-acceptance-windows2019
+  public: true
+  serial: true
+  plan:
+  - do:
+    - aggregate:
+      - get: bosh-dns-release
+        passed:
+        - create-release
+        trigger: true
+      - get: envs
+      - get: bosh-deployment
+      - get: gcp-linux-stemcell
+      - get: bosh-stemcell-windows
+        resource: windows-2019-stemcell
+      - get: bosh-candidate-release
+      - get: candidate-release
+        passed:
+        - create-release
+        trigger: true
+    - do:
+      - task: bbl-up
+        file: bosh-dns-release/ci/tasks/windows/bbl-up.yml
+        params:
+          BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
+          ENV_NAME: windows2019-1.10.x
+        ensure:
+          put: envs
+          params:
+            repository: envs
+            rebase: true
+      - task: setup-deploy
+        file: bosh-dns-release/ci/tasks/windows/setup-deploy.yml
+        params:
+          ENV_NAME: windows2019-1.10.x
+      - aggregate:
+        - task: windows
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
+          params:
+            WINDOWS_OS_VERSION: windows2019
+            ENV_NAME: windows2019-1.10.x
+          timeout: 1h
+        - task: windows-nameserver-disabled
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
+          params:
+            WINDOWS_OS_VERSION: windows2019
+            ENV_NAME: windows2019-1.10.x
+          timeout: 1h
+        - task: windows-shared
+          file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
+          params:
+            WINDOWS_OS_VERSION: windows2019
+            ENV_NAME: windows2019-1.10.x
+          timeout: 1h
+      ensure:
+        task: bbl-destroy
+        file: bosh-dns-release/ci/tasks/windows/bbl-destroy.yml
+        params:
+          BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
+          ENV_NAME: windows2019-1.10.x
         ensure:
           put: envs
           params:
@@ -399,9 +494,9 @@ jobs:
   plan:
     - aggregate:
       - get: bosh-dns-release
-        passed: [test-acceptance, test-acceptance-ubuntu-xenial, test-acceptance-windows, test-stress]
+        passed: [test-acceptance, test-acceptance-ubuntu-xenial, test-stress, test-acceptance-windows2012R2, test-acceptance-windows2016, test-acceptance-windows1803, test-acceptance-windows2019]
       - get: candidate-release
-        passed: [test-acceptance, test-acceptance-ubuntu-xenial, brats-ubuntu, test-acceptance-windows]
+        passed: [test-acceptance, test-acceptance-ubuntu-xenial, brats-ubuntu, test-acceptance-windows2012R2, test-acceptance-windows2016, test-acceptance-windows1803, test-acceptance-windows2019]
       - get: version
     - task: finalize-release
       file: bosh-dns-release/ci/tasks/finalize-release.yml
@@ -434,8 +529,10 @@ jobs:
         - test-stress
         - test-acceptance
         - test-acceptance-ubuntu-xenial
-        - test-acceptance-windows
+        - test-acceptance-windows2012R2
         - test-acceptance-windows2016
+        - test-acceptance-windows1803
+        - test-acceptance-windows2019
         - brats-ubuntu
     - put: tracker-output
       params:
@@ -528,6 +625,16 @@ resources:
   type: bosh-io-stemcell
   source:
     name: bosh-google-kvm-windows2016-go_agent
+
+- name: windows-1803-stemcell
+  type: bosh-io-stemcell
+  source:
+    name: bosh-google-kvm-windows1803-go_agent
+
+- name: windows-2019-stemcell
+  type: bosh-io-stemcell
+  source:
+    name: bosh-google-kvm-windows2019-go_agent
 
 - name: bosh-candidate-release
   type: s3
