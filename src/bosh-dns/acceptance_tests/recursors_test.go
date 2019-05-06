@@ -165,6 +165,33 @@ var _ = Describe("recursor", func() {
 			firstInstance = allDeployedInstances[0]
 		})
 
+		FIt("caches CNAME queries correctly", func() {
+			dnsResponse := helpers.Dig("cname.example.com.", firstInstance.IP)
+			Expect(dnsResponse.Answer).To(
+				ConsistOf(
+					gomegadns.MatchResponse(gomegadns.Response{
+						"ttl": 5,
+						"ip":  "cached.example.com.",
+					}),
+					gomegadns.MatchResponse(gomegadns.Response{
+						"ttl": 5,
+						"ip":  "10.10.10.11",
+					}),
+				),
+			)
+			Consistently(func() []dns.RR {
+				dnsResponse := helpers.Dig("cname.example.com.", firstInstance.IP)
+				return dnsResponse.Answer
+			}, "4s", "1s").Should(ConsistOf(
+				gomegadns.MatchResponse(gomegadns.Response{
+					"ip": "cached.example.com.",
+				}),
+				gomegadns.MatchResponse(gomegadns.Response{
+					"ip": "10.10.10.11",
+				}),
+			))
+		})
+
 		It("caches dns recursed dns entries for the duration of the TTL", func() {
 			dnsResponse := helpers.Dig("always-different-with-timeout-example.com.", firstInstance.IP)
 

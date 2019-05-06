@@ -225,6 +225,40 @@ func main() {
 		}
 	})
 
+	dns.HandleFunc("cname.example.com.", func(resp dns.ResponseWriter, req *dns.Msg) {
+		msg := new(dns.Msg)
+
+		msg.Answer = append(msg.Answer, &dns.CNAME{
+			Hdr: dns.RR_Header{
+				Name:   req.Question[0].Name,
+				Rrtype: dns.TypeCNAME,
+				Class:  dns.ClassINET,
+				Ttl:    5,
+			},
+			Target: "cached.example.com.",
+		})
+
+		msg.Answer = append(msg.Answer, &dns.A{
+			Hdr: dns.RR_Header{
+				Name:   "cached.example.com.",
+				Rrtype: dns.TypeA,
+				Class:  dns.ClassINET,
+				Ttl:    5,
+			},
+			A: net.ParseIP("10.10.10.11"),
+		})
+
+		msg.Authoritative = true
+		msg.RecursionAvailable = true
+
+		msg.SetReply(req)
+
+		err := resp.WriteMsg(msg)
+		if err != nil {
+			fmt.Println(err)
+		}
+	})
+
 	dns.HandleFunc("always-different-with-timeout-example.com.", func(resp dns.ResponseWriter, req *dns.Msg) {
 		msg := new(dns.Msg)
 

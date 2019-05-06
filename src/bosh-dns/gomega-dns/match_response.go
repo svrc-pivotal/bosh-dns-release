@@ -27,6 +27,8 @@ func fetchName(m dns.RR) string {
 func FetchIP(m dns.RR) string {
 	if address, ok := m.(*dns.A); ok {
 		return address.A.String()
+	} else if address, ok := m.(*dns.CNAME); ok {
+		return address.Target
 	}
 
 	return m.(*dns.PTR).String()
@@ -44,7 +46,7 @@ func fetchTTL(m dns.RR) int {
 	return int(m.Header().Ttl)
 }
 
-var responseFields = []string{"name", "ip", "rrtype", "class", "ttl"}
+var responseFields = []string{"name", "cname", "ip", "rrtype", "class", "ttl"}
 
 func (matcher *matchResponseMatcher) Match(actual interface{}) (success bool, err error) {
 	msg, ok := actual.(dns.RR)
