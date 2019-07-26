@@ -15,7 +15,7 @@ import (
 
 const MaxResolvConfRetries = 8
 
-var warningLine = "# This file was automatically updated by bosh-dns"
+const warningLine = "# This file was automatically updated by bosh-dns"
 
 var nameserverLineRegex = regexp.MustCompile("^nameserver (.+)")
 
@@ -61,7 +61,7 @@ func (r *resolvConfManager) Read() ([]string, error) {
 }
 
 func (r *resolvConfManager) SetPrimary() error {
-	writeString := fmt.Sprintf(`%s
+	ourEntry := fmt.Sprintf(`%s
 nameserver %s
 `, warningLine, r.address)
 
@@ -69,25 +69,18 @@ nameserver %s
 		return nil
 	}
 
-	if r.fs.FileExists("/etc/resolvconf/resolv.conf.d/head") {
-		append, err := r.fs.ReadFileString("/etc/resolvconf/resolv.conf.d/head")
-		if err != nil {
-			return bosherr.WrapError(err, "Reading existing head")
-		}
-
-		if !r.isStringCorrect(r.address, append) {
-			writeString = fmt.Sprintf("%s\n%s", writeString, append)
-		}
+	existing, err := r.fs.ReadFileString("/etc/resolv.conf")
+	if err != nil {
+		return bosherr.WrapError(err, "Reading /etc/resolv.conf")
 	}
 
-	err := r.fs.WriteFileString("/etc/resolvconf/resolv.conf.d/head", writeString)
-	if err != nil {
-		return bosherr.WrapError(err, "Writing head")
+	if !r.isStringCorrect(r.address, existing) {
+		ourEntry = fmt.Sprintf("%s\n%s", ourEntry, existing)
 	}
 
-	_, _, _, err = r.cmdRunner.RunCommand("resolvconf", "-u")
+	err = r.fs.WriteFileString("/etc/resolv.conf", ourEntry)
 	if err != nil {
-		return bosherr.WrapError(err, "Executing resolvconf")
+		return bosherr.WrapError(err, "Writing /etc/resolv.conf")
 	}
 
 	for i := 0; i < MaxResolvConfRetries; i++ {
@@ -100,7 +93,7 @@ nameserver %s
 		r.clock.Sleep(2 * time.Second)
 	}
 
-	return errors.New("Failed to confirm nameserver in /etc/resolv.conf")
+	return errors.New("failed to confirm nameserver in /etc/resolv.conf")
 }
 
 func (r *resolvConfManager) isCorrect(address string) (bool, error) {
