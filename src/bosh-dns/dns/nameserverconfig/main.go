@@ -14,6 +14,8 @@ import (
 	"code.cloudfoundry.org/clock"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	boshsys "github.com/cloudfoundry/bosh-utils/system"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func main() {
@@ -38,10 +40,17 @@ func main() {
 
 	dnsManager := newDNSManager(bindAddress, logger, realClock, fs)
 
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatalf("failed to initialize fsnotify: %v", err)
+	}
+	defer watcher.Close()
+
 	monitor := monitor.NewMonitor(
 		logger,
 		dnsManager,
 		ticker,
+		watcher,
 	)
 	go monitor.Run(shutdown)
 

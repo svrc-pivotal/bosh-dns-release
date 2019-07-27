@@ -106,8 +106,6 @@ func (r *resolvConfManager) isCorrect(address string) (bool, error) {
 		if server == address {
 			return true, nil
 		}
-
-		return false, nil
 	}
 
 	return false, nil
