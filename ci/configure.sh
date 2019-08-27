@@ -7,7 +7,7 @@ set +ex
 dir=$(dirname $0)
 
 fly -t ${CONCOURSE_TARGET:-production} \
-  sp -p bosh-dns-release \
+  sp -p bosh-dns-release:1.12.x \
   -c $dir/pipeline.yml \
   -l <(lpass show --notes 'dns-release pipeline vars') \
   -l <(lpass show --notes 'tracker-bot-story-delivery') \

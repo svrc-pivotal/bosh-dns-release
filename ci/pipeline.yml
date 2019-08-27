@@ -9,8 +9,6 @@ groups:
   - test-unit-windows
   - test-unit-release
   - create-release
-  - test-performance
-  - test-performance-windows
   - test-acceptance
   - test-acceptance-ubuntu-xenial
   - test-acceptance-windows2019
@@ -18,7 +16,6 @@ groups:
   - brats-ubuntu
   - upload-staging-release
   - finalize-release
-  - bump-major
   - delivery
 
 jobs:
@@ -43,7 +40,7 @@ jobs:
   public: true
   serial: true
   plan:
-  - aggregate:
+  - in_parallel:
     - get: bosh-dns-release
     - get: golang-release
       trigger: true
@@ -120,48 +117,11 @@ jobs:
       params:
         file: "release/bosh-dns-dev-release.tgz"
 
-- name: test-performance
-  interruptible: true
-  public: true
-  serial: true
-  plan:
-    - get: every-10m
-      trigger: true
-    - get: bosh-dns-release
-      trigger: true
-      passed: [create-release]
-    - task: test-performance
-      tags: ["dns-performance"]
-      privileged: true
-      file: bosh-dns-release/ci/tasks/test-performance.yml
-      params:
-        ZONES_JSON_HASH: {{zones_json_hash}}
-        DATADOG_API_KEY: {{datadog_api_key}}
-        DATADOG_ENVIRONMENT_TAG: bosh-dns-ci-linux
-
-- name: test-performance-windows
-  interruptible: true
-  public: true
-  serial: true
-  plan:
-    - get: every-10m
-      trigger: true
-    - get: bosh-dns-release
-      trigger: true
-      passed: [create-release]
-    - task: test-performance
-      file: bosh-dns-release/ci/tasks/windows/test-performance-windows.yml
-      timeout: 1h
-      params:
-        ZONES_JSON_HASH: {{zones_json_hash}}
-        DATADOG_API_KEY: {{datadog_api_key}}
-        DATADOG_ENVIRONMENT_TAG: bosh-dns-ci-windows
-
 - name: test-acceptance
   public: true
   serial: true
   plan:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-release
         passed: [create-release]
       - get: bosh-stemcell
@@ -182,7 +142,7 @@ jobs:
   public: true
   serial: true
   plan:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-release
         passed: [create-release]
       - get: bosh-stemcell
@@ -204,7 +164,7 @@ jobs:
   serial: true
   plan:
   - do:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-release
         passed:
         - create-release
@@ -225,7 +185,7 @@ jobs:
         file: bosh-dns-release/ci/tasks/windows/bbl-up.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2019
+          ENV_NAME: windows2019-1.12.x
         ensure:
           put: envs
           params:
@@ -234,32 +194,32 @@ jobs:
       - task: setup-deploy
         file: bosh-dns-release/ci/tasks/windows/setup-deploy.yml
         params:
-          ENV_NAME: windows2019
-      - aggregate:
+          ENV_NAME: windows2019-1.12.x
+      - in_parallel:
         - task: windows
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows.yml
           params:
             WINDOWS_OS_VERSION: windows2019
-            ENV_NAME: windows2019
+            ENV_NAME: windows2019-1.12.x
           timeout: 1h
         - task: windows-nameserver-disabled
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-nameserver-disabled.yml
           params:
             WINDOWS_OS_VERSION: windows2019
-            ENV_NAME: windows2019
+            ENV_NAME: windows2019-1.12.x
           timeout: 1h
         - task: windows-shared
           file: bosh-dns-release/ci/tasks/windows/test-acceptance-windows-shared.yml
           params:
             WINDOWS_OS_VERSION: windows2019
-            ENV_NAME: windows2019
+            ENV_NAME: windows2019-1.12.x
           timeout: 2h
       ensure:
         task: bbl-destroy
         file: bosh-dns-release/ci/tasks/windows/bbl-destroy.yml
         params:
           BBL_GCP_SERVICE_ACCOUNT_KEY: {{bbl_gcp_service_account_key_id}}
-          ENV_NAME: windows2019
+          ENV_NAME: windows2019-1.12.x
         ensure:
           put: envs
           params:
@@ -270,7 +230,7 @@ jobs:
   public: false
   serial: true
   plan:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-release
         trigger: true
         passed: [create-release]
@@ -291,7 +251,7 @@ jobs:
           BBL_AWS_SECRET_ACCESS_KEY: {{bbl_test_stress_secret_access_key}}
           BBL_AWS_REGION: us-west-1
           BBL_IAAS: aws
-          BBL_STATE_DIR: test-stress/bbl-state
+          BBL_STATE_DIR: test-stress-1.12.x/bbl-state
         ensure:
           put: envs
           params:
@@ -318,7 +278,7 @@ jobs:
         params:
           BBL_AWS_ACCESS_KEY_ID: {{bbl_test_stress_access_key_id}}
           BBL_AWS_SECRET_ACCESS_KEY: {{bbl_test_stress_secret_access_key}}
-          BBL_STATE_DIR: test-stress/bbl-state
+          BBL_STATE_DIR: test-stress-1.12.x/bbl-state
         ensure:
           put: envs
           params:
@@ -329,7 +289,7 @@ jobs:
   serial: true
   plan:
   - do:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-src
         resource: bosh-dns-release
       - get: brats-src
@@ -367,10 +327,8 @@ jobs:
         acl: public-read
 
 - name: finalize-release
-  serial_groups:
-    - version
   plan:
-    - aggregate:
+    - in_parallel:
       - get: bosh-dns-release
         passed: [delivery]
       - get: candidate-release
@@ -383,23 +341,15 @@ jobs:
         BLOBSTORE_SECRET_ACCESS_KEY: {{release_blobs_secret_access_key}}
     - put: version
       params:
-        bump: minor
+        bump: patch
     - put: bosh-dns-release
       params:
         rebase: true
         repository: final-bosh-dns-release
 
-- name: bump-major
-  serial_groups:
-    - version
-  plan:
-    - put: version
-      params:
-        bump: major
-
 - name: delivery
   plan:
-    - aggregate:
+    - in_parallel:
       - get: candidate-release
         passed:
         - test-stress
@@ -426,7 +376,7 @@ resources:
   type: git
   source:
     uri: git@github.com:cloudfoundry/bosh-dns-release
-    branch: master
+    branch: v1.12.x
     private_key: {{github_deployment_key}}
     ignore_paths:
     - ci/docker
@@ -450,6 +400,7 @@ resources:
   source:
     bucket: {{candidate_release_bucket}}
     key: version
+    initial_version: "1.12.0"
     access_key_id: {{candidate_release_access_key_id}}
     secret_access_key: {{candidate_release_secret_access_key}}
 
@@ -459,7 +410,7 @@ resources:
     bucket: {{candidate_release_bucket}}
     access_key_id: {{candidate_release_access_key_id}}
     secret_access_key: {{candidate_release_secret_access_key}}
-    versioned_file: "bosh-dns-dev-release.tgz"
+    versioned_file: "bosh-dns-dev-release-1.12.0.tgz"
 
 - name: staging-release
   type: s3
@@ -467,7 +418,7 @@ resources:
     bucket: {{candidate_release_bucket}}
     access_key_id: {{candidate_release_access_key_id}}
     secret_access_key: {{candidate_release_secret_access_key}}
-    versioned_file: "bosh-dns-staging-release.tgz"
+    versioned_file: "bosh-dns-staging-release-1.12.0.tgz"
 
 - name: brats-src
   type: git
@@ -528,10 +479,6 @@ resources:
     branch: master
     uri: git@github.com:cloudfoundry/bosh-bbl-ci-envs.git
     private_key: {{envs_private_key}}
-
-- name: every-10m
-  type: time
-  source: { interval: 10m }
 
 - name: weekly
   type: time
