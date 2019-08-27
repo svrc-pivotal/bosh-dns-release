@@ -399,7 +399,7 @@ resources:
   type: semver
   source:
     bucket: {{candidate_release_bucket}}
-    key: version
+    key: version-1.12
     initial_version: "1.12.0"
     access_key_id: {{candidate_release_access_key_id}}
     secret_access_key: {{candidate_release_secret_access_key}}
