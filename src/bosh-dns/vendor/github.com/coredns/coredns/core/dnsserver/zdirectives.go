@@ -36,6 +36,8 @@ var Directives = []string{
 	"template",
 	"hosts",
 	"route53",
+	"azure",
+	"clouddns",
 	"federation",
 	"k8s_external",
 	"kubernetes",
@@ -49,4 +51,5 @@ var Directives = []string{
 	"erratic",
 	"whoami",
 	"on",
+	"sign",
 }

@@ -224,6 +224,7 @@ func (f *FakeFile) Close() error {
 	if f.Stats != nil {
 		f.Stats.Open = false
 	}
+	f.fs.openFileRegistry.Remove(f.path)
 	return f.CloseErr
 }
 
@@ -954,6 +955,24 @@ func (fs *FakeFileSystem) RecursiveGlob(pattern string) (matches []string, err e
 	return fs.Glob(pattern)
 }
 
+func (fs *FakeFileSystem) Ls(root string) ([]string, error) {
+	matches := []string{}
+	err := fs.Walk(root, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if root != path {
+			matches = append(matches, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return matches, nil
+}
+
 func (fs *FakeFileSystem) Walk(root string, walkFunc filepath.WalkFunc) error {
 	if fs.WalkErr != nil {
 		return walkFunc("", nil, fs.WalkErr)
@@ -964,11 +983,10 @@ func (fs *FakeFileSystem) Walk(root string, walkFunc filepath.WalkFunc) error {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
-
-	root = gopath.Join(root) + "/"
+	pathPrefix := gopath.Join(root) + "/"
 	for _, path := range paths {
 		fileStats := fs.fileRegistry.Get(path)
-		if strings.HasPrefix(path, root) {
+		if gopath.Join(path) == gopath.Join(root) || strings.HasPrefix(path, pathPrefix) {
 			fakeFile := NewFakeFile(path, fs)
 			fakeFile.Stats = fileStats
 			fileInfo, _ := fakeFile.Stat()
@@ -1042,6 +1060,10 @@ func (ffr *FakeFileRegistry) Register(path string, file *FakeFile) {
 
 func (ffr *FakeFileRegistry) Get(path string) *FakeFile {
 	return ffr.files[ffr.UnifiedPath(path)]
+}
+
+func (ffr *FakeFileRegistry) Remove(path string) {
+	delete(ffr.files, ffr.UnifiedPath(path))
 }
 
 func (ffr *FakeFileRegistry) UnifiedPath(path string) string {
